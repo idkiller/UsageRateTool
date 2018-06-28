@@ -32,8 +32,6 @@ namespace UsageRateTool
                 }
             }
 
-            Console.WriteLine("# API table");
-
             var types = apis.Where(m => m.Category == Category.Type);
             foreach (var type in types)
             {

@@ -8,21 +8,26 @@ namespace UsageRateTool
 {
     class AssemblyLoader
     {
-        static bool Initialize = false;
+
+        static AssemblyLoader()
+        {
+            AppDomain currentDomain = AppDomain.CurrentDomain;
+            currentDomain.AssemblyResolve += MyResolveEventHandler;
+        }
+
+        public static Assembly GetAssemblyByName(AssemblyName name)
+        {
+            string cwd = Directory.GetCurrentDirectory();
+            return FindDll(cwd, name.FullName);
+        }
 
         public static Assembly GetAssembly(string path)
         {
-            if (!Initialize)
-            {
-                AppDomain currentDomain = AppDomain.CurrentDomain;
-                currentDomain.AssemblyResolve += MyResolveEventHandler;
-            }
-
             string cwd = Directory.GetCurrentDirectory();
             string source = Path.Combine(cwd, path);
             try
             {
-                return Assembly.LoadFile(source);
+                return Assembly.LoadFrom(source);
             }
             catch (ReflectionTypeLoadException ex)
             {

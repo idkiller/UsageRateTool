@@ -58,10 +58,12 @@ namespace UsageRateTool
                     if (property.GetMethod != null)
                     {
                         NameMap[property.GetMethod] = api;
+                        //Console.WriteLine($"{property.GetMethod.Name} => {property.GetMethod.GetMetadataToken():x} / {property.GetMethod.MetadataToken:x}");
                     }
                     if (property.SetMethod != null)
                     {
                         NameMap[property.SetMethod] = api;
+                        //Console.WriteLine($"{property.SetMethod.Name} => {property.SetMethod.GetMetadataToken():x} / {property.SetMethod.MetadataToken:x}");
                     }
                 }
 
@@ -140,7 +142,7 @@ namespace UsageRateTool
     {
         public static API Empty = new API();
 
-        ObservableCollection<MemberInfo> caller = new ObservableCollection<MemberInfo>();
+        List<MemberInfo> caller = new List<MemberInfo>();
 
         public API Parent { get; set; }
 
@@ -151,10 +153,8 @@ namespace UsageRateTool
         public string Name { get; set; }
         [Printable(3)]
         public string Type { get; set; }
-        [Printable(5)]
-        public string Tested { get; set; }
 
-        [Printable(6)]
+        [Printable(5)]
         public string References => $"{caller.Count()}";
 
         public IList<MemberInfo> Caller => caller;
@@ -166,11 +166,6 @@ namespace UsageRateTool
             Category = c;
             Name = name;
             Type = type;
-
-            caller.CollectionChanged += (s, e) =>
-            {
-                if (caller.Count() > 0) Tested = "tested";
-            };
         }
 
         public API (API parent, Category c, string name) : this(parent, c, name, null)

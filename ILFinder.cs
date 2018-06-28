@@ -10,12 +10,20 @@ namespace UsageRateTool
     delegate void FoundDelegater(MethodBase caller, MemberInfo callee);
     class ILFinder
     {
+        static IEnumerable<OpCode> opCodes;
+        static ILFinder()
+        {
+            opCodes = typeof(OpCodes)
+                .GetFields()
+                .Select(fi => (OpCode)fi.GetValue(null));
+        }
         public static void Find(IEnumerable<string> paths, FoundDelegater onFound)
         {
             if (onFound == null) return;
             foreach (var path in paths)
             {
                 var asm = AssemblyLoader.GetAssembly(path);
+
                 var types = asm.GetTypes();
 
                 foreach (var type in types)
@@ -23,7 +31,7 @@ namespace UsageRateTool
                     var methods = type.GetMethods(
                         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance |
                         BindingFlags.CreateInstance | BindingFlags.GetProperty | BindingFlags.SetProperty | BindingFlags.InvokeMethod |
-                        BindingFlags.SetField | BindingFlags.GetField | BindingFlags.FlattenHierarchy);
+                        BindingFlags.SetField | BindingFlags.GetField | BindingFlags.FlattenHierarchy | BindingFlags.DeclaredOnly);
 
                     foreach (var method in methods)
                     {
@@ -39,34 +47,37 @@ namespace UsageRateTool
             }
         }
 
-        public static void Find(MethodBase methodInfo, FoundDelegater onFound)
+        static void Find(MethodBase methodInfo, FoundDelegater onFound)
         {
             var body = methodInfo.GetMethodBody();
             if (body == null) return;
 
             byte[] il = body.GetILAsByteArray();
 
-            var opCodes = typeof(System.Reflection.Emit.OpCodes)
-                .GetFields()
-                .Select(fi => (System.Reflection.Emit.OpCode)fi.GetValue(null));
-
-            var mappedIL = il.Select(op =>
-                opCodes.FirstOrDefault(opCode => opCode.Value == op));
-
-            var ilWalker = mappedIL.GetEnumerator();
-            while (ilWalker.MoveNext())
+            var walker = il.GetEnumerator();
+            var module = methodInfo.Module;
+            while (walker.MoveNext())
             {
-                var mappedOp = ilWalker.Current;
-                if (mappedOp.OperandType != OperandType.InlineNone)
-                {
-                    var byteCount = 4;
-                    long operand = 0;
-                    string token = string.Empty;
+                long b = (byte)walker.Current;
 
-                    var module = methodInfo.Module;
-                    Func<int, string> tokenResolver = tkn => string.Empty;
-                    switch (mappedOp.OperandType)
+                if (b == OpCodes.Prefix1.Value)
+                {
+                    walker.MoveNext();
+                    b |= (long)((byte)walker.Current) << 8;
+                }
+
+                var op = opCodes.FirstOrDefault(opCode => opCode.Value == b);
+
+                int byteCount = 4;
+                long operand = 0;
+                Action<int> resolver = null;
+                try
+                {
+                    switch (op.OperandType)
                     {
+                        case OperandType.InlineNone:
+                            byteCount = 0;
+                            break;
                         case OperandType.InlineI8:
                         case OperandType.InlineR:
                             byteCount = 8;
@@ -76,41 +87,35 @@ namespace UsageRateTool
                         case OperandType.ShortInlineVar:
                             byteCount = 1;
                             break;
+                        case OperandType.InlineVar:
+                            byteCount = 2;
+                            break;
+                        case OperandType.InlineMethod:
+                            resolver = md => onFound(methodInfo, module.ResolveMethod(md));
+                            break;
+                        case OperandType.InlineField:
+                            resolver = md => onFound(methodInfo, module.ResolveField(md));
+                            break;
+                        case OperandType.InlineSig:
+                            resolver = md => module.ResolveSignature(md);
+                            break;
+                        case OperandType.InlineString:
+                            resolver = md => module.ResolveString(md);
+                            break;
+                        case OperandType.InlineType:
+                            resolver = md => module.ResolveType(md);
+                            break;
                     }
                     for (int i = 0; i < byteCount; i++)
                     {
-                        ilWalker.MoveNext();
-                        operand |= ((long)ilWalker.Current.Value) << (8 * i);
+                        walker.MoveNext();
+                        b = (byte)walker.Current;
+                        operand |= ((long)b) << (8 * i);
                     }
-
-                    try
-                    {
-                        switch (mappedOp.OperandType)
-                        {
-                            case OperandType.InlineMethod:
-                                var m = module.ResolveMethod((int)operand);
-                                if (m != null)
-                                    onFound(methodInfo, m);
-                                break;
-                            case OperandType.InlineField:
-                                var f = module.ResolveField((int)operand);
-                                if (f != null)
-                                    onFound(methodInfo, f);
-                                break;
-                            case OperandType.InlineSig:
-                                var sig = module.ResolveSignature((int)operand);
-                                break;
-                            case OperandType.InlineString:
-                                var str = module.ResolveString((int)operand);
-                                break;
-                            case OperandType.InlineType:
-                                var t = module.ResolveType((int)operand);
-                                break;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                    }
+                    resolver?.Invoke((int)operand);
+                }
+                catch (Exception ex)
+                {
                 }
             }
         }

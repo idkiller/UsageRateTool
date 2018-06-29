@@ -31,6 +31,7 @@ namespace UsageRateTool
             var types = assembly.GetTypes().Where(t =>
                     !t.IsDefined(typeof(CompilerGeneratedAttribute), false) &&
                     !t.IsEnum &&
+                    !t.IsNotPublic &&
                     !t.IsSubclassOf(typeof(Delegate)));
 
             foreach (Type type in types)
@@ -67,7 +68,7 @@ namespace UsageRateTool
                     }
                 }
 
-                var methodInfo = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly).Where(m => {
+                var methodInfo = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly | BindingFlags.Static).Where(m => {
                     if (!m.IsFamily && !m.IsPublic)
                     {
                         return false;

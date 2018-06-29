@@ -13,7 +13,12 @@ namespace UsageRateTool
             var apiProperty = typeof(API).GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(p => Attribute.IsDefined(p, typeof(PrintableAttribute)))
                 .OrderBy(p => (p?.GetCustomAttribute(typeof(PrintableAttribute), false) as PrintableAttribute)?.Order);
+
+            int targetCount = 0;
+            int UsedCount = 0;
+
             Dictionary<string, int> maxSize = new Dictionary<string, int>();
+
             foreach (var property in apiProperty)
             {
                 maxSize[property.Name] = property.Name.Length;
@@ -21,6 +26,8 @@ namespace UsageRateTool
 
             foreach (var api in apis)
             {
+                targetCount++;
+                if (api.Caller.Count() > 0) UsedCount++;
                 foreach (var property in apiProperty)
                 {
                     object v = property.GetValue(api);
@@ -31,6 +38,8 @@ namespace UsageRateTool
                     }
                 }
             }
+
+            Console.WriteLine($"public API has used {UsedCount} / {targetCount}");
 
             var types = apis.Where(m => m.Category == Category.Type);
             foreach (var type in types)

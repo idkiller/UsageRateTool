@@ -32,6 +32,7 @@ namespace UsageRateTool
                     !t.IsDefined(typeof(CompilerGeneratedAttribute), false) &&
                     !t.IsEnum &&
                     !t.IsNotPublic &&
+                    !t.IsInterface &&
                     !t.IsSubclassOf(typeof(Delegate)));
 
             foreach (Type type in types)

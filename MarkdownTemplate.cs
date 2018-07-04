@@ -26,7 +26,8 @@ namespace UsageRateTool
 
             foreach (var api in apis)
             {
-                targetCount++;
+                if (api.Parent != API.Empty)
+                    targetCount++;
                 if (api.Caller.Count() > 0) UsedCount++;
                 foreach (var property in apiProperty)
                 {

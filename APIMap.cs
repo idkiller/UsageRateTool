@@ -70,7 +70,7 @@ namespace UsageRateTool
                 }
 
                 var methodInfo = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly | BindingFlags.Static).Where(m => {
-                    if (!m.IsFamily && !m.IsPublic)
+                    if (!m.IsPublic)
                     {
                         return false;
                     }

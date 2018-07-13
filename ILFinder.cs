@@ -28,22 +28,32 @@ namespace UsageRateTool
 
                 foreach (var type in types)
                 {
-                    var methods = type.GetMethods(
-                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance |
-                        BindingFlags.CreateInstance | BindingFlags.GetProperty | BindingFlags.SetProperty | BindingFlags.InvokeMethod |
-                        BindingFlags.SetField | BindingFlags.GetField | BindingFlags.FlattenHierarchy | BindingFlags.DeclaredOnly);
+                    FindType(type, onFound);
 
-                    foreach (var method in methods)
+                    if (type.BaseType != null)
                     {
-                        Find(method, onFound);
-                    }
-
-                    var ctors = type.GetConstructors(BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                    foreach (var ctor in ctors)
-                    {
-                        Find(ctor, onFound);
+                        Type baseType = type.BaseType;
+                        FindType(baseType, onFound);
                     }
                 }
+            }
+        }
+
+        static void FindType(Type type, FoundDelegater onFound)
+        {
+            var methods = type.GetMethods(
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance |
+                BindingFlags.CreateInstance | BindingFlags.GetProperty | BindingFlags.SetProperty | BindingFlags.InvokeMethod |
+                BindingFlags.SetField | BindingFlags.GetField | BindingFlags.FlattenHierarchy | BindingFlags.DeclaredOnly);
+            foreach (var method in methods)
+            {
+                Find(method, onFound);
+            }
+
+            var ctors = type.GetConstructors(BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            foreach (var ctor in ctors)
+            {
+                Find(ctor, onFound);
             }
         }
 

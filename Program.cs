@@ -20,7 +20,7 @@ namespace UsageRateTool
         static void Main(string[] args)
         {
             var option = new OptionParser(args);
-            if (option.Sources.Count() == 0)
+            if (option.Sources == null || option.Sources.Count() == 0)
             {
                 option.Help();
                 return;
@@ -30,7 +30,15 @@ namespace UsageRateTool
 
             if (option.Targets.Count() == 0)
             {
-                MarkdownTemplate.Print(map.APIList);
+                if(!option.IsBase)
+                {
+                    MarkdownTemplate.Print(map.APIList);
+                }
+                else
+                {
+                    MarkdownTemplate.Print(map.BaseAPIList);
+                }
+
                 return;
             }
 
@@ -40,9 +48,21 @@ namespace UsageRateTool
                 {
                     value.Caller.Add(caller);
                 }
+
+                if (map.NameMapOfBase.TryGetValue(callee, out var value1))
+                {
+                    value1.Caller.Add(caller);
+                }
             });
 
-            MarkdownTemplate.Print(map.APIList);
+            if (!option.IsBase)
+            {
+                MarkdownTemplate.Print(map.APIList);
+            }
+            else
+            {
+                MarkdownTemplate.Print(map.BaseAPIList);
+            }
         }
     }
 }

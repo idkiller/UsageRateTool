@@ -14,6 +14,9 @@ namespace UsageRateTool
         List<API> apis = new List<API>();
         Dictionary<MemberInfo, API> nameMap = new Dictionary<MemberInfo, API>();
 
+        List<API> apisOfBase = new List<API>();
+        Dictionary<MemberInfo, API> nameMapOfBase = new Dictionary<MemberInfo, API>();
+
         public APIMap(IEnumerable<string> paths)
         {
             foreach (var path in paths)
@@ -24,6 +27,9 @@ namespace UsageRateTool
 
         public IEnumerable<API> APIList => apis;
         public Dictionary<MemberInfo, API> NameMap => nameMap;
+
+        public IEnumerable<API> BaseAPIList => apisOfBase;
+        public Dictionary<MemberInfo, API> NameMapOfBase => nameMapOfBase;
 
         void Load(string path)
         {
@@ -37,88 +43,184 @@ namespace UsageRateTool
 
             foreach (Type type in types)
             {
-                string typeName = type.Name;
-                var t = new API(Category.Type, typeName);
-                apis.Add(t);
+                LoadBaseType(type);
+                LoadType(type);
+            }
+        }
 
-                var staticFieldsInfo = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly)
-                    .Where(f => f.IsFamily || f.IsPublic);
-                foreach (var field in staticFieldsInfo)
+        void LoadBaseType(Type type)
+        {
+            Type baseType = type.BaseType;
+            string parentName = baseType.Name + " of " + type.Name;
+            var bt = new API(Category.Type, parentName);
+            apisOfBase.Add(bt);
+
+            var staticFieldsInfoOfBase = baseType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly)
+                .Where(f => f.IsFamily || f.IsPublic);
+            foreach (var field in staticFieldsInfoOfBase)
+            {
+                var api = new API(bt, Category.StaticField, field.Name, field.FieldType.Name);
+                apisOfBase.Add(api);
+                NameMapOfBase[field] = api;
+            }
+
+            var propertyInfoOfBase = baseType.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(p => (p.GetMethod != null && !p.GetMethod.IsPrivate) || (p.SetMethod != null && !p.SetMethod.IsPrivate));
+            foreach (var property in propertyInfoOfBase)
+            {
+                var api = new API(bt, Category.Property, property.Name, property.PropertyType.Name);
+                apisOfBase.Add(api);
+
+                if (property.GetMethod != null)
                 {
-                    var api = new API(t, Category.StaticField, field.Name, field.FieldType.Name);
-                    apis.Add(api);
-                    NameMap[field] = api;
+                    NameMapOfBase[property.GetMethod] = api;
+                    //Console.WriteLine($"{property.GetMethod.Name} => {property.GetMethod.GetMetadataToken():x} / {property.GetMethod.MetadataToken:x}");
                 }
-
-                var propertyInfo = type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-                    .Where(p => (p.GetMethod != null && !p.GetMethod.IsPrivate) || (p.SetMethod != null && !p.SetMethod.IsPrivate));
-                foreach (var property in propertyInfo)
+                if (property.SetMethod != null)
                 {
-                    var api = new API(t, Category.Property, property.Name, property.PropertyType.Name);
-                    apis.Add(api);
-
-                    if (property.GetMethod != null)
-                    {
-                        NameMap[property.GetMethod] = api;
-                        //Console.WriteLine($"{property.GetMethod.Name} => {property.GetMethod.GetMetadataToken():x} / {property.GetMethod.MetadataToken:x}");
-                    }
-                    if (property.SetMethod != null)
-                    {
-                        NameMap[property.SetMethod] = api;
-                        //Console.WriteLine($"{property.SetMethod.Name} => {property.SetMethod.GetMetadataToken():x} / {property.SetMethod.MetadataToken:x}");
-                    }
+                    NameMapOfBase[property.SetMethod] = api;
+                    //Console.WriteLine($"{property.SetMethod.Name} => {property.SetMethod.GetMetadataToken():x} / {property.SetMethod.MetadataToken:x}");
                 }
+            }
 
-                var methodInfo = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly | BindingFlags.Static).Where(m => {
-                    if (!m.IsPublic)
-                    {
-                        return false;
-                    }
-                    var method = m as MethodBase;
-                    return method == null || !method.IsSpecialName;
-                });
-                foreach (var method in methodInfo)
+            var methodInfoOfBase = baseType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly | BindingFlags.Static).Where(m =>
+            {
+                if (!m.IsFamily && !m.IsPublic)
                 {
-                    var pars = method.GetParameters();
-                    var psb = new StringBuilder();
+                    return false;
+                }
+                var method = m as MethodBase;
+                return method == null || !method.IsSpecialName;
+            });
+            foreach (var method in methodInfoOfBase)
+            {
+                var pars = method.GetParameters();
+                var psb = new StringBuilder();
+                psb.Append(' ');
+                foreach (var p in pars)
+                {
+                    psb.Append(p.ParameterType.Name);
                     psb.Append(' ');
-                    foreach (var p in pars)
-                    {
-                        psb.Append(p.ParameterType.Name);
-                        psb.Append(' ');
-                        psb.Append(p.Name);
-                        psb.Append(' ');
-                    }
-
-                    var api = new API(t, Category.Method, $"{method.Name}({psb.ToString()})", method.ReturnType.Name);
-                    apis.Add(api);
-                    NameMap[method] = api;
+                    psb.Append(p.Name);
+                    psb.Append(' ');
                 }
 
-                var fieldsInfo = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-                    .Where(m => m.IsFamily || m.IsPublic);
-                foreach (var field in fieldsInfo)
+                var api = new API(bt, Category.Method, $"{method.Name}({psb.ToString()})", method.ReturnType.Name);
+                apisOfBase.Add(api);
+                NameMapOfBase[method] = api;
+            }
+
+            var fieldsInfoOfBase = baseType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(m => m.IsFamily || m.IsPublic);
+            foreach (var field in fieldsInfoOfBase)
+            {
+                var api = new API(bt, Category.Field, field.Name, field.FieldType.Name);
+                apisOfBase.Add(api);
+                NameMapOfBase[field] = api;
+            }
+
+            var eventsInfoOfBase = baseType.GetEvents(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(e => !e.AddMethod.IsPrivate || !e.RemoveMethod.IsPrivate);
+            foreach (var evnt in eventsInfoOfBase)
+            {
+                var api = new API(bt, Category.Event, evnt.Name, evnt.EventHandlerType.Name);
+                apisOfBase.Add(api);
+
+                if (evnt.AddMethod != null)
                 {
-                    var api = new API(t, Category.Field, field.Name, field.FieldType.Name);
-                    apis.Add(api);
-                    NameMap[field] = api;
+                    NameMapOfBase[evnt.AddMethod] = api;
+                }
+                if (evnt.RemoveMethod != null)
+                {
+                    NameMapOfBase[evnt.RemoveMethod] = api;
+                }
+            }
+        }
+
+        void LoadType(Type type)
+        {
+            string typeName = type.Name;
+            var t = new API(Category.Type, typeName);
+            apis.Add(t);
+
+            var staticFieldsInfo = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly)
+                .Where(f => f.IsFamily || f.IsPublic);
+            foreach (var field in staticFieldsInfo)
+            {
+                var api = new API(t, Category.StaticField, field.Name, field.FieldType.Name);
+                apis.Add(api);
+                NameMap[field] = api;
+            }
+
+            var propertyInfo = type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(p => (p.GetMethod != null && !p.GetMethod.IsPrivate) || (p.SetMethod != null && !p.SetMethod.IsPrivate));
+            foreach (var property in propertyInfo)
+            {
+                var api = new API(t, Category.Property, property.Name, property.PropertyType.Name);
+                apis.Add(api);
+
+                if (property.GetMethod != null)
+                {
+                    NameMap[property.GetMethod] = api;
+                    //Console.WriteLine($"{property.GetMethod.Name} => {property.GetMethod.GetMetadataToken():x} / {property.GetMethod.MetadataToken:x}");
+                }
+                if (property.SetMethod != null)
+                {
+                    NameMap[property.SetMethod] = api;
+                    //Console.WriteLine($"{property.SetMethod.Name} => {property.SetMethod.GetMetadataToken():x} / {property.SetMethod.MetadataToken:x}");
+                }
+            }
+
+            var methodInfo = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly | BindingFlags.Static).Where(m =>
+            {
+                if (!m.IsPublic)
+                {
+                    return false;
+                }
+                var method = m as MethodBase;
+                return method == null || !method.IsSpecialName;
+            });
+            foreach (var method in methodInfo)
+            {
+                var pars = method.GetParameters();
+                var psb = new StringBuilder();
+                psb.Append(' ');
+                foreach (var p in pars)
+                {
+                    psb.Append(p.ParameterType.Name);
+                    psb.Append(' ');
+                    psb.Append(p.Name);
+                    psb.Append(' ');
                 }
 
-                var eventsInfo = type.GetEvents(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-                    .Where(e => !e.AddMethod.IsPrivate || !e.RemoveMethod.IsPrivate);
-                foreach (var evnt in eventsInfo)
-                {
-                    var api = new API(t, Category.Event, evnt.Name, evnt.EventHandlerType.Name);
-                    apis.Add(api);
+                var api = new API(t, Category.Method, $"{method.Name}({psb.ToString()})", method.ReturnType.Name);
+                apis.Add(api);
+                NameMap[method] = api;
+            }
 
-                    if (evnt.AddMethod != null)
-                    {
-                        NameMap[evnt.AddMethod] = api;
-                    }
-                    if (evnt.RemoveMethod != null)
-                    {
-                        NameMap[evnt.RemoveMethod] = api;
-                    }
+            var fieldsInfo = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(m => m.IsFamily || m.IsPublic);
+            foreach (var field in fieldsInfo)
+            {
+                var api = new API(t, Category.Field, field.Name, field.FieldType.Name);
+                apis.Add(api);
+                NameMap[field] = api;
+            }
+
+            var eventsInfo = type.GetEvents(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(e => !e.AddMethod.IsPrivate || !e.RemoveMethod.IsPrivate);
+            foreach (var evnt in eventsInfo)
+            {
+                var api = new API(t, Category.Event, evnt.Name, evnt.EventHandlerType.Name);
+                apis.Add(api);
+
+                if (evnt.AddMethod != null)
+                {
+                    NameMap[evnt.AddMethod] = api;
+                }
+                if (evnt.RemoveMethod != null)
+                {
+                    NameMap[evnt.RemoveMethod] = api;
                 }
             }
         }

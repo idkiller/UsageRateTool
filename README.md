@@ -20,3 +20,9 @@ Get Markdown API usage table from target dll
 ```
 dotnet <UsageRateTool directory>/UsageRateTool.dll [-s] <API dlls> [-t] <target dlls>
 ```
+
+Get Markdown Base API usage table from target dll
+
+```
+dotnet <UsageRateTool directory>/UsageRateTool.dll [-b] [-s] <API dlls> [-t] <target dlls>
+```

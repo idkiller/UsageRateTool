@@ -9,9 +9,11 @@ namespace UsageRateTool
     {
         IEnumerable<string> _sources;
         IEnumerable<string> _targets;
+        bool _isbase;
 
         const string SourceOption = "-s";
         const string TargetOption = "-t";
+        const string BaseOption = "-b";
         const string HelpOption = "-h";
 
         string option = null;
@@ -21,6 +23,7 @@ namespace UsageRateTool
             List<string> sources = new List<string>();
             List<string> targets = new List<string>();
             List<string> others = new List<string>();
+            bool isbase = false;
 
             foreach (var arg in args)
             {
@@ -32,9 +35,12 @@ namespace UsageRateTool
                 {
                     option = TargetOption;
                 }
+                else if (arg == BaseOption)
+                {
+                    isbase = true;
+                }
                 else if (arg == HelpOption)
                 {
-                    Help();
                     return;
                 }
                 else
@@ -61,6 +67,7 @@ namespace UsageRateTool
 
             _sources = sources;
             _targets = targets;
+            _isbase = isbase;
         }
 
         public void Help()
@@ -68,10 +75,12 @@ namespace UsageRateTool
             var name = this.GetType().Assembly.GetName().Name;
             Console.WriteLine($"Usage: {name} <source dll>");
             Console.WriteLine($"Usage: {name} [{SourceOption}] <source dlls> [{TargetOption}] <target dlls>");
+            Console.WriteLine($"Usage: {name} [{BaseOption}] [{SourceOption}] <source dlls> [{TargetOption}] <target dlls>");
             Console.WriteLine($"Usage: {name} [{HelpOption}]");
         }
 
         public IEnumerable<string> Sources => _sources;
         public IEnumerable<string> Targets => _targets;
+        public bool IsBase => _isbase;
     }
 }
